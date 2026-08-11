@@ -1,0 +1,53 @@
+package com.foodelivery.controller;
+
+import com.foodelivery.api.OrderServiceApi;
+import com.foodelivery.converter.OrderConverter;
+import com.foodelivery.domain.Cart;
+import com.foodelivery.domain.Order;
+import com.foodelivery.model.CartModel;
+import com.foodelivery.model.OrderModel;
+import com.foodelivery.repository.FoodRepository;
+import com.foodelivery.service.FoodDeliveryService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+public class OrderController implements OrderServiceApi {
+
+    private final FoodDeliveryService foodDeliveryService;
+    private final FoodRepository foodRepository;
+
+    public OrderController(FoodDeliveryService foodDeliveryService, FoodRepository foodRepository) {
+        this.foodDeliveryService = foodDeliveryService;
+        this.foodRepository = foodRepository;
+    }
+
+    @Override
+    public ResponseEntity<OrderModel> createOrder(CartModel cartModel) {
+        Cart cart = OrderConverter.toDomain(cartModel, foodRepository);
+        Order order = foodDeliveryService.createOrder(getAuthenticatedUserName(), cart);
+        return ResponseEntity.status(HttpStatus.CREATED).body(OrderConverter.toModel(order));
+    }
+
+    @Override
+    public ResponseEntity<OrderModel> getOrder(Long orderId) {
+        Order order = foodDeliveryService.getOrderById(orderId, getAuthenticatedUserName());
+        return ResponseEntity.ok(OrderConverter.toModel(order));
+    }
+
+    @Override
+    public ResponseEntity<List<OrderModel>> getOrders() {
+        List<OrderModel> orders = foodDeliveryService.getOrders(getAuthenticatedUserName()).stream()
+                .map(OrderConverter::toModel)
+                .toList();
+        return ResponseEntity.ok(orders);
+    }
+
+    private String getAuthenticatedUserName() {
+        return SecurityContextHolder.getContext().getAuthentication().getName();
+    }
+}
