@@ -1,19 +1,38 @@
 # Food Delivery REST API — Spring MVC Multi-Module
 
-A multi-module Spring Boot application for a food ordering platform. Customers browse a menu, place orders from a cart, and manage their order history — all behind Spring Security authentication.
+[![Build and Test](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml/badge.svg)](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml)
 
-## Overview
+A multi-module Spring Boot food ordering API. Customers browse a menu, place orders from a cart, and manage order history — secured with Spring Security and backed by PostgreSQL in production-like environments.
 
-The project is split into four Maven modules following a layered architecture:
+## What problem it solves
 
-| Module | Responsibility |
-|--------|----------------|
-| `api` | OpenAPI specification and generated DTOs |
-| `persistence` | JPA entities and Spring Data repositories |
-| `service` | Business logic (cart, orders, balance checks) |
-| `web` | REST controllers, security, exception handling |
+Demonstrates how to structure a real backend service: API contracts, persistence, business rules, security, database migrations, containerized deployment, and integration testing against PostgreSQL.
 
-Data is stored in an in-memory H2 database, pre-loaded with sample customers, foods, and orders.
+## Architecture
+
+```
+api  →  OpenAPI spec and generated DTOs
+persistence  →  JPA entities and repositories
+service  →  transactional business logic
+web  →  REST controllers, security, exception handling
+```
+
+```mermaid
+flowchart LR
+    Client --> Web
+    Web --> Service
+    Service --> Persistence
+    Persistence --> PostgreSQL[(PostgreSQL)]
+    Flyway --> PostgreSQL
+```
+
+### Architecture decisions
+
+- **Multi-module Maven layout** keeps API contracts, domain, business logic, and web layer separated.
+- **PostgreSQL + Flyway** for runtime schema control instead of Hibernate `ddl-auto` in production-like profiles.
+- **H2 in-memory database** for fast MockMvc tests only (`test` profile).
+- **`open-in-view: false`** with `@EntityGraph` on order queries to avoid lazy-loading issues in the web layer.
+- **Testcontainers** integration tests validate authentication, ownership, balance rules, and persistence against real PostgreSQL (runs in CI; skipped locally if Docker is unavailable).
 
 ## Tech Stack
 
@@ -23,13 +42,15 @@ Data is stored in an in-memory H2 database, pre-loaded with sample customers, fo
 | Spring Boot | 3.4.13 |
 | Spring Security | (managed by Spring Boot) |
 | Spring Data JPA | (managed by Spring Boot) |
-| H2 Database | (in-memory) |
+| PostgreSQL | 16 |
+| Flyway | (managed by Spring Boot) |
+| Testcontainers | 1.20.4 |
 | OpenAPI Generator | (api module) |
-| Maven | 3.x |
+| Maven Wrapper | 3.9.9 |
 
 ## API Endpoints
 
-All `/api/**` endpoints require authentication. Use HTTP Basic Auth or the built-in form login.
+All `/api/**` endpoints require authentication. Use HTTP Basic Auth or form login.
 
 | Method | Path | Description | Success |
 |--------|------|-------------|---------|
@@ -37,6 +58,8 @@ All `/api/**` endpoints require authentication. Use HTTP Basic Auth or the built
 | `GET` | `/api/orders` | List orders for the authenticated customer | `200 OK` |
 | `GET` | `/api/orders/{orderId}` | Get a specific order | `200 OK` |
 | `POST` | `/api/orders` | Create an order from a cart payload | `201 Created` |
+| `GET` | `/actuator/health` | Health check | `200 OK` |
+| `GET` | `/actuator/info` | Application info | `200 OK` |
 
 ### Error responses
 
@@ -52,21 +75,42 @@ All `/api/**` endpoints require authentication. Use HTTP Basic Auth or the built
 ### Prerequisites
 
 - JDK 17+
-- Apache Maven 3.8+
+- Docker (for Compose and Testcontainers integration tests)
+
+### Run with Docker Compose (recommended)
+
+```bash
+docker compose up --build
+```
+
+API available at `http://localhost:8080`. PostgreSQL exposed on port `5432`.
+
+### Run locally against PostgreSQL
+
+Start PostgreSQL and set environment variables:
+
+| Variable | Default |
+|----------|---------|
+| `DB_HOST` | `localhost` |
+| `DB_PORT` | `5432` |
+| `DB_NAME` | `food_delivery` |
+| `DB_USERNAME` | `food_delivery` |
+| `DB_PASSWORD` | `food_delivery` |
+
+```bash
+./mvnw spring-boot:run -pl web
+```
+
+The `local` profile is active by default. Flyway applies migrations on startup.
 
 ### Build and test
 
 ```bash
-mvn test
+./mvnw verify
 ```
 
-### Run the application
-
-```bash
-mvn spring-boot:run -pl web
-```
-
-The server starts on `http://localhost:8080`.
+- **MockMvc tests** use the `test` profile with in-memory H2.
+- **Testcontainers tests** require Docker and start PostgreSQL automatically.
 
 ### Demo accounts
 
@@ -79,37 +123,31 @@ The server starts on `http://localhost:8080`.
 ### Example requests
 
 ```bash
-# List menu items
 curl -u Smith:SmithSecret http://localhost:8080/api/foods
-
-# List your orders
 curl -u Smith:SmithSecret http://localhost:8080/api/orders
-
-# Place an order
 curl -u Smith:SmithSecret -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
   -d @web/src/test/resources/ValidCartExample.json
 ```
 
-### H2 console
-
-While the app is running, browse the database at `http://localhost:8080/h2-console`:
-
-- JDBC URL: `jdbc:h2:mem:testdb`
-- Username: `sa`
-- Password: *(empty)*
-
 ## Project Structure
 
 ```
 spring-mvc-food-delivery/
-├── api/              # OpenAPI spec + generated models
-├── persistence/      # JPA domain + repositories
-├── service/          # FoodDeliveryService implementation
-└── web/              # Spring Boot app, controllers, security
-    └── src/main/resources/
-        ├── application.properties
-        └── data.sql          # Seed data
+├── api/
+├── persistence/
+├── service/
+├── web/
+│   └── src/main/resources/
+│       ├── application.yml
+│       ├── application-local.yml
+│       ├── application-test.yml
+│       └── db/migration/
+│           ├── V1__create_schema.sql
+│           └── V2__seed_demo_data.sql
+├── Dockerfile
+├── compose.yaml
+└── .github/workflows/build.yml
 ```
 
 ## Business rules
@@ -118,6 +156,19 @@ spring-mvc-food-delivery/
 - Orders cannot be placed with an empty cart
 - Orders are rejected when the customer balance is insufficient
 - Customers can only view their own orders
+
+## What I learned
+
+- Structuring a Spring Boot backend as Maven modules with clear boundaries
+- Managing schema evolution with Flyway instead of ad-hoc SQL scripts
+- Testing secured REST APIs with MockMvc and PostgreSQL via Testcontainers
+- Running a full stack locally with Docker Compose
+
+## Known limitations / next steps
+
+- Pagination and filtering for foods and orders
+- JWT authentication (current flow uses form login / HTTP Basic)
+- Admin role for menu management
 
 ## License
 
