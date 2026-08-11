@@ -23,13 +23,24 @@ import javax.annotation.Generated;
  * CartModel
  */
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-26T22:23:31.849481800+02:00[Europe/Paris]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-27T17:12:18.844208700+02:00[Europe/Paris]")
 public class CartModel {
 
   @Valid
   private List<@Valid OrderItemModel> orderItemModels = new ArrayList<>();
 
   private BigDecimal price = new BigDecimal("0");
+
+  public CartModel() {
+    super();
+  }
+
+  /**
+   * Constructor with only required parameters
+   */
+  public CartModel(List<@Valid OrderItemModel> orderItemModels) {
+    this.orderItemModels = orderItemModels;
+  }
 
   public CartModel orderItemModels(List<@Valid OrderItemModel> orderItemModels) {
     this.orderItemModels = orderItemModels;
@@ -48,8 +59,8 @@ public class CartModel {
    * Get orderItemModels
    * @return orderItemModels
   */
-  @Valid 
-  @Schema(name = "orderItemModels", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @NotNull @Valid @Size(min = 1) 
+  @Schema(name = "orderItemModels", requiredMode = Schema.RequiredMode.REQUIRED)
   @JsonProperty("orderItemModels")
   public List<@Valid OrderItemModel> getOrderItemModels() {
     return orderItemModels;
@@ -66,9 +77,10 @@ public class CartModel {
 
   /**
    * Get price
+   * minimum: 0
    * @return price
   */
-  @Valid 
+  @Valid @DecimalMin("0") 
   @Schema(name = "price", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
   @JsonProperty("price")
   public BigDecimal getPrice() {

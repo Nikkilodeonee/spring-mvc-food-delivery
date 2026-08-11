@@ -1,7 +1,7 @@
 INSERT INTO customer (id, user_name, password, name, balance) OVERRIDING SYSTEM VALUE VALUES
-    (1, 'Smith', 'SmithSecret', 'Josh Smith', 100.00),
-    (2, 'Jane', 'JaneSecret', 'Jane Doe', 100.00),
-    (3, 'John', 'JohnSecret', 'John Doe 1', 10.00);
+    (1, 'Smith', '$2a$10$gRUMtCrgS8GNGjkfhPRAs.VALIDDj0IUJP4Zsh6JqYAOcZdU8nRUu', 'Josh Smith', 100.00),
+    (2, 'Jane', '$2a$10$LnbvN9VIlWDtZXL6okG1qOkTW7GiGusDmwGThYVzvFDJvojBBhMfe', 'Jane Doe', 100.00),
+    (3, 'John', '$2a$10$e.7LuA9c6EIBtgxVS8SbfOLMyQnUyop2IFSWC2Ot.ID6xO2tSvoqG', 'John Doe 1', 10.00);
 
 INSERT INTO food (id, name, description, calorie, price) OVERRIDING SYSTEM VALUE VALUES
     (1, 'Fideua', 'Noodles gone wild in a seafood fiesta', 558.00, 15.00),

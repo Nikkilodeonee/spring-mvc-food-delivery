@@ -5,6 +5,16 @@
 A production-style multi-module Spring Boot REST API for food ordering.  
 The project demonstrates layered backend architecture, secured endpoints, database migrations, containerized PostgreSQL setup, and integration testing with Testcontainers.
 
+## Highlights
+
+- Production-style multi-module Spring Boot REST API
+- PostgreSQL + Flyway migrations
+- Docker Compose local environment
+- GitHub Actions CI
+- MockMvc and Testcontainers tests
+- Spring Security authentication
+- Layered architecture with controllers, services, repositories
+
 ## Project purpose
 
 This project demonstrates how I structure a real backend service with clear module boundaries, API contracts, persistence, business rules, security, database migrations, Docker-based local infrastructure, and CI-tested PostgreSQL integration tests.
@@ -64,12 +74,22 @@ All `/api/**` endpoints require authentication. Use HTTP Basic Auth.
 
 ## Error responses
 
-| Status             | Condition                                           |
-| ------------------ | --------------------------------------------------- |
-| `400 Bad Request`  | Empty cart or insufficient account balance          |
-| `401 Unauthorized` | Missing or invalid credentials                      |
-| `403 Forbidden`    | Order does not belong to the authenticated customer |
-| `404 Not Found`    | Order not found                                     |
+API errors return a JSON body:
+
+```json
+{
+  "error": "BAD_REQUEST",
+  "message": "Cart is empty."
+}
+```
+
+| Status             | `error` value   | Condition                                           |
+| ------------------ | --------------- | --------------------------------------------------- |
+| `400 Bad Request`  | `BAD_REQUEST`   | Empty cart, insufficient balance, or validation failure |
+| `401 Unauthorized` | `UNAUTHORIZED`  | Missing or invalid credentials                      |
+| `403 Forbidden`    | `FORBIDDEN`     | Order does not belong to the authenticated customer |
+| `404 Not Found`    | `NOT_FOUND`     | Order not found                                     |
+| `409 Conflict`     | `CONFLICT`      | Concurrent balance update (optimistic locking)        |
 
 ## Getting started
 
@@ -122,6 +142,9 @@ The `local` profile is active by default. Flyway applies migrations on startup.
 
 ## Demo accounts
 
+> **Note:** Demo passwords below are for local development and testing only.  
+> In the database they are stored as BCrypt hashes; use the plain-text values with HTTP Basic Auth.
+
 | Username | Password      | Balance |
 | -------- | ------------- | ------- |
 | `Smith`  | `SmithSecret` | `$100`  |
@@ -171,6 +194,7 @@ spring-mvc-food-delivery/
 * Empty carts are rejected.
 * Orders are rejected when the customer balance is insufficient.
 * Customers can only view their own orders.
+* Customer balance updates use optimistic locking (`@Version`) to avoid race conditions.
 
 ## What I learned
 
@@ -186,7 +210,6 @@ spring-mvc-food-delivery/
 * Add pagination and filtering for foods and orders.
 * Add JWT authentication.
 * Add admin role for menu management.
-* Add request validation annotations for cart payloads.
 * Add API documentation page through Swagger UI.
 
 ## License

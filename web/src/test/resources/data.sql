@@ -3,10 +3,10 @@ DELETE FROM _order;
 DELETE FROM food;
 DELETE FROM customer;
 
-INSERT INTO customer(user_name, password, id, name, balance) VALUES
-    ('Smith', 'SmithSecret', 1, 'Josh Smith', 100),
-    ('Jane', 'JaneSecret', 2, 'Jane Doe', 100),
-    ('John', 'JohnSecret', 3, 'John Doe 1', 10);
+INSERT INTO customer(user_name, password, id, name, balance, version) VALUES
+    ('Smith', '$2a$10$gRUMtCrgS8GNGjkfhPRAs.VALIDDj0IUJP4Zsh6JqYAOcZdU8nRUu', 1, 'Josh Smith', 100, 0),
+    ('Jane', '$2a$10$LnbvN9VIlWDtZXL6okG1qOkTW7GiGusDmwGThYVzvFDJvojBBhMfe', 2, 'Jane Doe', 100, 0),
+    ('John', '$2a$10$e.7LuA9c6EIBtgxVS8SbfOLMyQnUyop2IFSWC2Ot.ID6xO2tSvoqG', 3, 'John Doe 1', 10, 0);
 
 INSERT INTO food(id, name, description, calorie, price) VALUES
     (1, 'Fideua', 'Noodles gone wild in a seafood fiesta', 558, 15),

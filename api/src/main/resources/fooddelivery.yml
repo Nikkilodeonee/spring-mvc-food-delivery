@@ -105,6 +105,9 @@ components:
 
     OrderItemModel:
       type: object
+      required:
+        - foodModel
+        - pieces
       properties:
         id:
           type: integer
@@ -113,8 +116,10 @@ components:
           $ref: '#/components/schemas/FoodModel'
         pieces:
           type: integer
+          minimum: 1
         price:
           type: number
+          minimum: 0
 
     OrderModel:
       type: object
@@ -133,12 +138,15 @@ components:
 
     CartModel:
       type: object
+      required:
+        - orderItemModels
       properties:
         orderItemModels:
           type: array
-          default: [ ]
+          minItems: 1
           items:
             $ref: '#/components/schemas/OrderItemModel'
         price:
           type: number
+          minimum: 0
           default: 0

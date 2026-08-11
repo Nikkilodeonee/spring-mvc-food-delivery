@@ -5,6 +5,7 @@ import com.foodelivery.repository.CustomerRepository;
 import com.foodelivery.repository.FoodRepository;
 import com.foodelivery.repository.OrderRepository;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,23 +21,31 @@ public class DefaultFoodDeliveryService implements FoodDeliveryService {
     private final CustomerRepository customerRepository;
     private final FoodRepository foodRepository;
     private final OrderRepository orderRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public DefaultFoodDeliveryService(
             CustomerRepository customerRepository,
             FoodRepository foodRepository,
-            OrderRepository orderRepository
+            OrderRepository orderRepository,
+            PasswordEncoder passwordEncoder
     ) {
         this.customerRepository = customerRepository;
         this.foodRepository = foodRepository;
         this.orderRepository = orderRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     @Transactional(readOnly = true)
     public Customer authenticate(Credentials credentials) {
-        return customerRepository
-                .findByUserNameAndPassword(credentials.getUserName(), credentials.getPassword())
+        Customer customer = customerRepository.findByUserName(credentials.getUserName())
                 .orElseThrow(() -> new AuthenticationException("Invalid username or password."));
+
+        if (!passwordEncoder.matches(credentials.getPassword(), customer.getPassword())) {
+            throw new AuthenticationException("Invalid username or password.");
+        }
+
+        return customer;
     }
 
     @Override

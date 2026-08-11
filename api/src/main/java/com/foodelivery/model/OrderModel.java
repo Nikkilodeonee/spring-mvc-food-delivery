@@ -23,7 +23,7 @@ import javax.annotation.Generated;
  * OrderModel
  */
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-26T22:23:31.849481800+02:00[Europe/Paris]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-27T17:12:18.844208700+02:00[Europe/Paris]")
 public class OrderModel {
 
   private Long id;

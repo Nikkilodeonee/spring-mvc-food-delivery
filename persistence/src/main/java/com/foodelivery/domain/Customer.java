@@ -5,6 +5,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Transient;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -18,6 +19,9 @@ public class Customer extends Credentials {
 
     private String name;
     private BigDecimal balance;
+
+    @Version
+    private long version;
 
     @Transient
     private Cart cart = new Cart();

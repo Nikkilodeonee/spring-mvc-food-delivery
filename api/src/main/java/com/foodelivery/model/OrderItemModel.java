@@ -20,7 +20,7 @@ import javax.annotation.Generated;
  * OrderItemModel
  */
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-26T22:23:31.849481800+02:00[Europe/Paris]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-06-27T17:12:18.844208700+02:00[Europe/Paris]")
 public class OrderItemModel {
 
   private Long id;
@@ -30,6 +30,18 @@ public class OrderItemModel {
   private Integer pieces;
 
   private BigDecimal price;
+
+  public OrderItemModel() {
+    super();
+  }
+
+  /**
+   * Constructor with only required parameters
+   */
+  public OrderItemModel(FoodModel foodModel, Integer pieces) {
+    this.foodModel = foodModel;
+    this.pieces = pieces;
+  }
 
   public OrderItemModel id(Long id) {
     this.id = id;
@@ -60,8 +72,8 @@ public class OrderItemModel {
    * Get foodModel
    * @return foodModel
   */
-  @Valid 
-  @Schema(name = "foodModel", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @NotNull @Valid 
+  @Schema(name = "foodModel", requiredMode = Schema.RequiredMode.REQUIRED)
   @JsonProperty("foodModel")
   public FoodModel getFoodModel() {
     return foodModel;
@@ -78,10 +90,11 @@ public class OrderItemModel {
 
   /**
    * Get pieces
+   * minimum: 1
    * @return pieces
   */
-  
-  @Schema(name = "pieces", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @NotNull @Min(1) 
+  @Schema(name = "pieces", requiredMode = Schema.RequiredMode.REQUIRED)
   @JsonProperty("pieces")
   public Integer getPieces() {
     return pieces;
@@ -98,9 +111,10 @@ public class OrderItemModel {
 
   /**
    * Get price
+   * minimum: 0
    * @return price
   */
-  @Valid 
+  @Valid @DecimalMin("0") 
   @Schema(name = "price", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
   @JsonProperty("price")
   public BigDecimal getPrice() {
