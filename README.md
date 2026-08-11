@@ -2,22 +2,22 @@
 
 [![Build and Test](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml/badge.svg)](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml)
 
-A production-style multi-module Spring Boot REST API for food ordering.  
-The project demonstrates layered backend architecture, secured endpoints, database migrations, containerized PostgreSQL setup, and integration testing with Testcontainers.
+Started as an **EPAM Java training** multi-module Spring MVC exercise (food browsing, order placement, and security).  
+I later **extended it independently** with PostgreSQL, Flyway migrations, Docker Compose, GitHub Actions CI, and MockMvc + Testcontainers integration tests.
 
 ## Highlights
 
-- Production-style multi-module Spring Boot REST API
-- PostgreSQL + Flyway migrations
-- Docker Compose local environment
-- GitHub Actions CI
-- MockMvc and Testcontainers tests
-- Spring Security authentication
-- Layered architecture with controllers, services, repositories
+- Multi-module Spring Boot REST API (`api` · `persistence` · `service` · `web`)
+- Spring Security **form login** (session cookie) for API access
+- PostgreSQL + **Flyway** migrations
+- **Docker Compose** local environment
+- **GitHub Actions** CI
+- **MockMvc** and **Testcontainers** tests
+- Transactional order/balance logic with optimistic locking
 
 ## Project purpose
 
-This project demonstrates how I structure a real backend service with clear module boundaries, API contracts, persistence, business rules, security, database migrations, Docker-based local infrastructure, and CI-tested PostgreSQL integration tests.
+Training foundation + personal extensions: layered modules, secured REST endpoints, transactional order logic from a cart payload, and production-like local ops (Postgres, Flyway, Docker, CI).
 
 ## Architecture
 
@@ -45,6 +45,7 @@ flowchart LR
 * `open-in-view: false` is enabled to avoid lazy-loading from the web layer.
 * `@EntityGraph` is used for order queries that need related order items.
 * Testcontainers validates secured API behavior against real PostgreSQL in CI.
+* Auth is Spring Security **form login** (not JWT / HTTP Basic). JWT is listed under next steps.
 
 ## Tech stack
 
@@ -61,7 +62,7 @@ flowchart LR
 
 ## API endpoints
 
-All `/api/**` endpoints require authentication. Use HTTP Basic Auth.
+All `/api/**` endpoints require an authenticated session (form login).
 
 | Method | Path                    | Description                                | Success       |
 | ------ | ----------------------- | ------------------------------------------ | ------------- |
@@ -71,6 +72,8 @@ All `/api/**` endpoints require authentication. Use HTTP Basic Auth.
 | `POST` | `/api/orders`           | Create an order from a cart payload        | `201 Created` |
 | `GET`  | `/actuator/health`      | Health check                               | `200 OK`      |
 | `GET`  | `/actuator/info`        | Application info                           | `200 OK`      |
+
+There is no separate cart CRUD API — the cart is sent as the JSON body of `POST /api/orders`.
 
 ## Error responses
 
@@ -86,7 +89,7 @@ API errors return a JSON body:
 | Status             | `error` value   | Condition                                           |
 | ------------------ | --------------- | --------------------------------------------------- |
 | `400 Bad Request`  | `BAD_REQUEST`   | Empty cart, insufficient balance, or validation failure |
-| `401 Unauthorized` | `UNAUTHORIZED`  | Missing or invalid credentials                      |
+| `401 Unauthorized` | `UNAUTHORIZED`  | Missing or invalid session                          |
 | `403 Forbidden`    | `FORBIDDEN`     | Order does not belong to the authenticated customer |
 | `404 Not Found`    | `NOT_FOUND`     | Order not found                                     |
 | `409 Conflict`     | `CONFLICT`      | Concurrent balance update (optimistic locking)        |
@@ -143,7 +146,7 @@ The `local` profile is active by default. Flyway applies migrations on startup.
 ## Demo accounts
 
 > **Note:** Demo passwords below are for local development and testing only.  
-> In the database they are stored as BCrypt hashes; use the plain-text values with HTTP Basic Auth.
+> In the database they are stored as BCrypt hashes; use the plain-text values with form login.
 
 | Username | Password      | Balance |
 | -------- | ------------- | ------- |
@@ -153,16 +156,17 @@ The `local` profile is active by default. Flyway applies migrations on startup.
 
 ## Example requests
 
-```bash
-curl -u Smith:SmithSecret http://localhost:8080/api/foods
-```
+Login (saves session cookie), then call the API:
 
 ```bash
-curl -u Smith:SmithSecret http://localhost:8080/api/orders
-```
+curl -c cookies.txt -X POST http://localhost:8080/login \
+  -d "username=Smith&password=SmithSecret" -L
 
-```bash
-curl -u Smith:SmithSecret -X POST http://localhost:8080/api/orders \
+curl -b cookies.txt http://localhost:8080/api/foods
+
+curl -b cookies.txt http://localhost:8080/api/orders
+
+curl -b cookies.txt -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
   -d @web/src/test/resources/ValidCartExample.json
 ```
@@ -189,7 +193,7 @@ spring-mvc-food-delivery/
 
 ## Business rules
 
-* Orders are created from a cart.
+* Orders are created from a cart payload.
 * The order total is deducted from the customer balance.
 * Empty carts are rejected.
 * Orders are rejected when the customer balance is insufficient.
@@ -208,7 +212,7 @@ spring-mvc-food-delivery/
 ## Known limitations / next steps
 
 * Add pagination and filtering for foods and orders.
-* Add JWT authentication.
+* Replace form login with JWT authentication for API clients.
 * Add admin role for menu management.
 * Add API documentation page through Swagger UI.
 
@@ -218,4 +222,4 @@ This project is licensed under the MIT License — see [LICENSE](LICENSE).
 
 ## Author
 
-**[Nikkilodeonee](https://github.com/Nikkilodeonee)**
+**Roman Sushkin** — [GitHub](https://github.com/Nikkilodeonee)
