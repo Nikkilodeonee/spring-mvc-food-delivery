@@ -1,6 +1,6 @@
 # Food Delivery REST API — Spring MVC Multi-Module
 
-[![Build and Test](https://github.com/roman-sushkin/spring-mvc-food-delivery/actions/workflows/build.yml/badge.svg)](https://github.com/roman-sushkin/spring-mvc-food-delivery/actions/workflows/build.yml)
+[![Build and Test](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml/badge.svg)](https://github.com/Nikkilodeonee/spring-mvc-food-delivery/actions/workflows/build.yml)
 
 Started as an **EPAM Java training** multi-module Spring MVC exercise (food browsing, order placement, and security).  
 I later **extended it independently** with PostgreSQL, Flyway migrations, Docker Compose, GitHub Actions CI, and MockMvc + Testcontainers integration tests.
