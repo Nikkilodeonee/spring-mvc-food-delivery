@@ -222,4 +222,4 @@ This project is licensed under the MIT License — see [LICENSE](LICENSE).
 
 ## Author
 
-**Roman Sushkin** — [GitHub](https://github.com/roman-sushkin)
+**Roman Sushkin** — [GitHub](https://github.com/Nikkilodeonee)
