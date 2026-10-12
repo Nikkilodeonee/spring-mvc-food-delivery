@@ -39,6 +39,7 @@ paths:
       tags:
         - OrderService
       summary: Create order from the cart of body
+      description: Accepts only food IDs and quantities. Menu prices and all totals are calculated by the server. Requires a session and a CSRF token.
       operationId: createOrder
       requestBody:
         required: true
@@ -54,7 +55,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderModel'
         '400':
-          description: Cart is empty or customer doesn't have enough balance
+          description: Cart is invalid or customer doesn't have enough balance
+        '403':
+          description: Missing or invalid CSRF token
+        '404':
+          description: Food not found
 
   /api/orders/{orderId}:
     get:
@@ -136,6 +141,20 @@ components:
           items:
             $ref: '#/components/schemas/OrderItemModel'
 
+    CartItemModel:
+      type: object
+      required:
+        - foodId
+        - pieces
+      properties:
+        foodId:
+          type: integer
+          format: int64
+          minimum: 1
+        pieces:
+          type: integer
+          minimum: 1
+
     CartModel:
       type: object
       required:
@@ -145,8 +164,4 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/OrderItemModel'
-        price:
-          type: number
-          minimum: 0
-          default: 0
+            $ref: '#/components/schemas/CartItemModel'

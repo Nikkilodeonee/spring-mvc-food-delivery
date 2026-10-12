@@ -2,8 +2,17 @@ package com.fooddelivery;
 
 import com.fooddelivery.model.FoodModel;
 import com.fooddelivery.model.OrderModel;
+import com.fooddelivery.domain.Cart;
+import com.fooddelivery.domain.Food;
+import com.fooddelivery.domain.Order;
+import com.fooddelivery.domain.OrderItem;
+import com.fooddelivery.repository.CustomerRepository;
+import com.fooddelivery.repository.OrderRepository;
+import com.fooddelivery.service.FoodDeliveryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
@@ -23,6 +34,8 @@ import org.springframework.web.context.WebApplicationContext;
 import java.io.IOException;
 import java.math.BigDecimal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
@@ -56,6 +69,12 @@ public class FoodDeliveryRestServiceTest {
     private WebApplicationContext context;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private CustomerRepository customerRepository;
+    @Autowired
+    private OrderRepository orderRepository;
+    @Autowired
+    private FoodDeliveryService foodDeliveryService;
 
     private MockMvc mockMvc;
 
@@ -121,7 +140,7 @@ public class FoodDeliveryRestServiceTest {
     @DisplayName("post " + ORDERS_PATH + " should respond with 401 when not authenticated")
     public void testPostOrdersShouldReturnUnauthorizedWhenNotAuthenticated() throws Exception {
         mockMvc
-                .perform(post(ORDERS_PATH))
+                .perform(post(ORDERS_PATH).with(csrf()))
                 .andExpect(status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
@@ -214,6 +233,7 @@ public class FoodDeliveryRestServiceTest {
     void testPostOrderServiceSlashOrdersShouldReturnWithBadRequestWhenCartIsEmpty() throws Exception {
         mockMvc
                 .perform(post(ORDERS_PATH)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(fromFile(EMPTY_CART_FILE_NAME)))
                 .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
@@ -224,8 +244,11 @@ public class FoodDeliveryRestServiceTest {
     @DisplayName("post " + ORDERS_PATH
             + " should respond 201 and the created order")
     void testCreateOrderShouldReturnOrderWhenOrderCreated() throws Exception {
+        BigDecimal balanceBefore = balance(USERNAME);
+        long ordersBefore = orderRepository.count();
         MvcResult mvcResult = mockMvc
                 .perform(post(ORDERS_PATH)
+                    .with(csrf().asHeader())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(fromFile(VALID_CART_FILE_NAME)))
                 .andExpect(status().is(HttpStatus.CREATED.value()))
@@ -233,10 +256,181 @@ public class FoodDeliveryRestServiceTest {
         String responseBody = mvcResult.getResponse().getContentAsString();
         OrderModel actual = objectMapper.readValue(responseBody, OrderModel.class);
 
-        Assertions.assertEquals(new BigDecimal("45"), actual.getPrice(), "order price");
+        Assertions.assertEquals(new BigDecimal("45.00"), actual.getPrice(), "order price");
         Assertions.assertEquals(1, actual.getOrderItemModels().size(), "number of order items");
         Assertions.assertEquals(1, actual.getOrderItemModels().get(0).getFoodModel().getId(),
                 "food id");
+        assertEquals(new BigDecimal("45.00"), actual.getOrderItemModels().get(0).getPrice());
+        assertEquals(balanceBefore.subtract(actual.getPrice()), balance(USERNAME));
+        assertEquals(ordersBefore + 1, orderRepository.count());
+        assertEquals(actual.getPrice(), orderRepository.findById(actual.getId()).orElseThrow().getPrice());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "0.01", "-100", "999999"})
+    @WithMockUser(username = USERNAME)
+    void shouldIgnoreManipulatedPricesAndChargeForAllItems(String submittedPrice) throws Exception {
+        String cart = """
+                {"price": %s, "orderItemModels": [
+                  {"foodId": 1, "pieces": 3, "price": %s, "foodModel": {"id": 1, "price": %s}},
+                  {"foodId": 2, "pieces": 2, "price": %s}
+                ]}
+                """.formatted(submittedPrice, submittedPrice, submittedPrice, submittedPrice);
+        BigDecimal balanceBefore = balance(USERNAME);
+        long ordersBefore = orderRepository.count();
+
+        MvcResult result = mockMvc.perform(post(ORDERS_PATH).with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON).content(cart))
+                .andExpect(status().isCreated()).andReturn();
+        OrderModel created = objectMapper.readValue(result.getResponse().getContentAsString(), OrderModel.class);
+
+        assertEquals(new BigDecimal("71.00"), created.getPrice());
+        assertEquals(new BigDecimal("45.00"), created.getOrderItemModels().get(0).getPrice());
+        assertEquals(new BigDecimal("26.00"), created.getOrderItemModels().get(1).getPrice());
+        assertEquals(new BigDecimal("15.00"), created.getOrderItemModels().get(0).getFoodModel().getPrice());
+        assertEquals(balanceBefore.subtract(new BigDecimal("71.00")), balance(USERNAME));
+        assertEquals(ordersBefore + 1, orderRepository.count());
+        Order saved = orderRepository.findById(created.getId()).orElseThrow();
+        assertEquals(created.getPrice(), saved.getPrice());
+        assertEquals(saved.getPrice(), saved.getOrderItems().stream()
+                .map(OrderItem::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    @Test
+    @WithMockUser(username = "John")
+    void shouldRejectUnderpricedOrderWhenRealTotalExceedsBalance() throws Exception {
+        BigDecimal balanceBefore = balance("John");
+        long ordersBefore = orderRepository.count();
+        mockMvc.perform(post(ORDERS_PATH).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"price": 0.01, "orderItemModels": [{"foodId": 1, "pieces": 3, "price": 0.01}]}
+                                """))
+                .andExpect(status().isBadRequest());
+        assertEquals(balanceBefore, balance("John"));
+        assertEquals(ordersBefore, orderRepository.count());
+    }
+
+    @Test
+    void shouldRecalculatePricesAtTheServiceBoundary() {
+        Food submittedFood = new Food();
+        submittedFood.setId(1L);
+        submittedFood.setPrice(new BigDecimal("0.01"));
+        OrderItem submittedItem = new OrderItem();
+        submittedItem.setFood(submittedFood);
+        submittedItem.setPieces(3);
+        submittedItem.setPrice(new BigDecimal("0.01"));
+        Cart cart = new Cart();
+        cart.getOrderItems().add(submittedItem);
+        cart.setPrice(new BigDecimal("0.01"));
+
+        Order order = foodDeliveryService.createOrder(USERNAME, cart);
+
+        assertEquals(new BigDecimal("45.00"), order.getPrice());
+        assertEquals(new BigDecimal("45.00"), order.getOrderItems().get(0).getPrice());
+        assertEquals(new BigDecimal("15.00"), order.getOrderItems().get(0).getFood().getPrice());
+        assertEquals(new BigDecimal("55.00"), balance(USERNAME));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}", "{\"orderItemModels\": null}", "{\"orderItemModels\": [null]}",
+            "{\"orderItemModels\": [{\"foodId\": 1}]}",
+            "{\"orderItemModels\": [{\"foodId\": 1, \"pieces\": null}]}",
+            "{\"orderItemModels\": [{\"foodId\": 1, \"pieces\": 0}]}",
+            "{\"orderItemModels\": [{\"foodId\": 1, \"pieces\": -3}]}",
+            "{\"orderItemModels\": [{\"pieces\": 3}]}",
+            "{\"orderItemModels\": [{\"foodId\": 0, \"pieces\": 3}]}"
+    })
+    @WithMockUser(username = USERNAME)
+    void shouldRejectInvalidCartWithoutChangingState(String cart) throws Exception {
+        BigDecimal balanceBefore = balance(USERNAME);
+        long ordersBefore = orderRepository.count();
+        mockMvc.perform(post(ORDERS_PATH).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(cart))
+                .andExpect(status().isBadRequest());
+        assertEquals(balanceBefore, balance(USERNAME));
+        assertEquals(ordersBefore, orderRepository.count());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME)
+    void shouldRejectUnknownFoodWithoutChangingState() throws Exception {
+        BigDecimal balanceBefore = balance(USERNAME);
+        long ordersBefore = orderRepository.count();
+        mockMvc.perform(post(ORDERS_PATH).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderItemModels\": [{\"foodId\": 9999, \"pieces\": 1}]}"))
+                .andExpect(status().isNotFound());
+        assertEquals(balanceBefore, balance(USERNAME));
+        assertEquals(ordersBefore, orderRepository.count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @WithMockUser(username = USERNAME)
+    void shouldRejectMissingOrInvalidCsrfWithoutChangingState(boolean invalidToken) throws Exception {
+        BigDecimal balanceBefore = balance(USERNAME);
+        long ordersBefore = orderRepository.count();
+        var request = post(ORDERS_PATH).contentType(MediaType.APPLICATION_JSON)
+                .content(fromFile(VALID_CART_FILE_NAME));
+        if (invalidToken) {
+            request.with(csrf().asHeader().useInvalidToken());
+        }
+        mockMvc.perform(request).andExpect(status().isForbidden());
+        assertEquals(balanceBefore, balance(USERNAME));
+        assertEquals(ordersBefore, orderRepository.count());
+    }
+
+    @Test
+    void shouldRejectLoginWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/login").param("username", USERNAME).param("password", PASSWORD))
+                .andExpect(status().isForbidden()).andExpect(unauthenticated());
+    }
+
+    @Test
+    void shouldRequireAuthenticationToFetchApiCsrfToken() throws Exception {
+        mockMvc.perform(get("/api/csrf")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldUseSessionCsrfTokenForCheckoutAndLogout() throws Exception {
+        MvcResult loginPage = mockMvc.perform(get("/login")).andExpect(status().isOk()).andReturn();
+        CsrfToken loginToken = (CsrfToken) loginPage.getRequest().getAttribute(CsrfToken.class.getName());
+        MockHttpSession session = (MockHttpSession) loginPage.getRequest().getSession(false);
+        MvcResult login = mockMvc.perform(post("/login").session(session)
+                        .param("username", USERNAME).param("password", PASSWORD)
+                        .param(loginToken.getParameterName(), loginToken.getToken()))
+                .andExpect(authenticated().withUsername(USERNAME)).andReturn();
+        session = (MockHttpSession) login.getRequest().getSession(false);
+
+        MvcResult tokenResponse = mockMvc.perform(get("/api/csrf").session(session))
+                .andExpect(status().isOk()).andReturn();
+        var token = objectMapper.readTree(tokenResponse.getResponse().getContentAsString());
+        String headerName = token.get("headerName").asText();
+        String tokenValue = token.get("token").asText();
+        long ordersBefore = orderRepository.count();
+
+        mockMvc.perform(post(ORDERS_PATH).session(session)
+                        .header(headerName, loginToken.getToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(fromFile(VALID_CART_FILE_NAME)))
+                .andExpect(status().isForbidden());
+        assertEquals(new BigDecimal("100.00"), balance(USERNAME));
+        assertEquals(ordersBefore, orderRepository.count());
+
+        mockMvc.perform(post(ORDERS_PATH).session(session).header(headerName, tokenValue)
+                        .contentType(MediaType.APPLICATION_JSON).content(fromFile(VALID_CART_FILE_NAME)))
+                .andExpect(status().isCreated());
+        assertEquals(new BigDecimal("55.00"), balance(USERNAME));
+
+        mockMvc.perform(post("/logout").session(session)).andExpect(status().isForbidden());
+        mockMvc.perform(get(FOODS_PATH).session(session)).andExpect(status().isOk());
+        mockMvc.perform(post("/logout").session(session).header(headerName, tokenValue))
+                .andExpect(status().is3xxRedirection()).andExpect(unauthenticated());
+    }
+
+    private BigDecimal balance(String username) {
+        return customerRepository.findByUserName(username).orElseThrow().getBalance();
     }
 
     private byte[] fromFile(String path) throws IOException {

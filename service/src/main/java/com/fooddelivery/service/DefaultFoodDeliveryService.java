@@ -79,7 +79,7 @@ public class DefaultFoodDeliveryService implements FoodDeliveryService {
         Customer customer = customerRepository.findByUserName(userName)
                 .orElseThrow(() -> new NoSuchElementException("Customer not found."));
 
-        if (cart.getOrderItems() == null || cart.getOrderItems().isEmpty()) {
+        if (cart == null || cart.getOrderItems() == null || cart.getOrderItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty.");
         }
 
@@ -130,12 +130,14 @@ public class DefaultFoodDeliveryService implements FoodDeliveryService {
             throw new IllegalArgumentException("Cart is empty.");
         }
 
-        if (customer.getBalance().compareTo(cart.getPrice()) < 0) {
-            throw new IllegalArgumentException("Customer has insufficient balance.");
-        }
+        priceCartFromMenu(cart);
 
         Customer managedCustomer = customerRepository.findById(customer.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found."));
+
+        if (managedCustomer.getBalance().compareTo(cart.getPrice()) < 0) {
+            throw new IllegalArgumentException("Customer has insufficient balance.");
+        }
 
         managedCustomer.setBalance(
                 managedCustomer.getBalance().subtract(cart.getPrice()).setScale(2)
@@ -166,6 +168,25 @@ public class DefaultFoodDeliveryService implements FoodDeliveryService {
         customer.getCart().setPrice(new BigDecimal("0.00"));
 
         return savedOrder;
+    }
+
+    private void priceCartFromMenu(Cart cart) {
+        for (OrderItem item : cart.getOrderItems()) {
+            if (item == null || item.getFood() == null || item.getFood().getId() == null
+                    || item.getFood().getId() <= 0) {
+                throw new IllegalArgumentException("A positive food ID is required.");
+            }
+            if (item.getPieces() <= 0) {
+                throw new IllegalArgumentException("Pieces must be positive.");
+            }
+
+            Long foodId = item.getFood().getId();
+            Food food = foodRepository.findById(foodId)
+                    .orElseThrow(() -> new NoSuchElementException("Food not found: " + foodId));
+            item.setFood(food);
+            item.setPrice(food.getPrice().multiply(BigDecimal.valueOf(item.getPieces())).setScale(2));
+        }
+        recalculateCartPrice(cart);
     }
 
     private void recalculateCartPrice(Cart cart) {

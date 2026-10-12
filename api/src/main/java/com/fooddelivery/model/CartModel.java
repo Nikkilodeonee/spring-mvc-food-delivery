@@ -4,8 +4,7 @@ import java.net.URI;
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fooddelivery.model.OrderItemModel;
-import java.math.BigDecimal;
+import com.fooddelivery.model.CartItemModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -27,9 +26,7 @@ import javax.annotation.Generated;
 public class CartModel {
 
   @Valid
-  private List<@Valid OrderItemModel> orderItemModels = new ArrayList<>();
-
-  private BigDecimal price = new BigDecimal("0");
+  private List<@Valid CartItemModel> orderItemModels = new ArrayList<>();
 
   public CartModel() {
     super();
@@ -38,16 +35,16 @@ public class CartModel {
   /**
    * Constructor with only required parameters
    */
-  public CartModel(List<@Valid OrderItemModel> orderItemModels) {
+  public CartModel(List<@Valid CartItemModel> orderItemModels) {
     this.orderItemModels = orderItemModels;
   }
 
-  public CartModel orderItemModels(List<@Valid OrderItemModel> orderItemModels) {
+  public CartModel orderItemModels(List<@Valid CartItemModel> orderItemModels) {
     this.orderItemModels = orderItemModels;
     return this;
   }
 
-  public CartModel addOrderItemModelsItem(OrderItemModel orderItemModelsItem) {
+  public CartModel addOrderItemModelsItem(CartItemModel orderItemModelsItem) {
     if (this.orderItemModels == null) {
       this.orderItemModels = new ArrayList<>();
     }
@@ -62,33 +59,12 @@ public class CartModel {
   @NotNull @Valid @Size(min = 1) 
   @Schema(name = "orderItemModels", requiredMode = Schema.RequiredMode.REQUIRED)
   @JsonProperty("orderItemModels")
-  public List<@Valid OrderItemModel> getOrderItemModels() {
+  public List<@Valid CartItemModel> getOrderItemModels() {
     return orderItemModels;
   }
 
-  public void setOrderItemModels(List<@Valid OrderItemModel> orderItemModels) {
+  public void setOrderItemModels(List<@Valid CartItemModel> orderItemModels) {
     this.orderItemModels = orderItemModels;
-  }
-
-  public CartModel price(BigDecimal price) {
-    this.price = price;
-    return this;
-  }
-
-  /**
-   * Get price
-   * minimum: 0
-   * @return price
-  */
-  @Valid @DecimalMin("0") 
-  @Schema(name = "price", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-  @JsonProperty("price")
-  public BigDecimal getPrice() {
-    return price;
-  }
-
-  public void setPrice(BigDecimal price) {
-    this.price = price;
   }
 
   @Override
@@ -100,13 +76,12 @@ public class CartModel {
       return false;
     }
     CartModel cartModel = (CartModel) o;
-    return Objects.equals(this.orderItemModels, cartModel.orderItemModels) &&
-        Objects.equals(this.price, cartModel.price);
+    return Objects.equals(this.orderItemModels, cartModel.orderItemModels);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(orderItemModels, price);
+    return Objects.hash(orderItemModels);
   }
 
   @Override
@@ -114,7 +89,6 @@ public class CartModel {
     StringBuilder sb = new StringBuilder();
     sb.append("class CartModel {\n");
     sb.append("    orderItemModels: ").append(toIndentedString(orderItemModels)).append("\n");
-    sb.append("    price: ").append(toIndentedString(price)).append("\n");
     sb.append("}");
     return sb.toString();
   }

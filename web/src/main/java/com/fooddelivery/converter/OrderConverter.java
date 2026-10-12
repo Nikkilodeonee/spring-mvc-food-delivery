@@ -1,16 +1,16 @@
 package com.fooddelivery.converter;
 
 import com.fooddelivery.domain.Cart;
+import com.fooddelivery.domain.Food;
 import com.fooddelivery.domain.Order;
 import com.fooddelivery.domain.OrderItem;
+import com.fooddelivery.model.CartItemModel;
 import com.fooddelivery.model.CartModel;
 import com.fooddelivery.model.OrderItemModel;
 import com.fooddelivery.model.OrderModel;
-import com.fooddelivery.repository.FoodRepository;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 public final class OrderConverter {
 
@@ -41,19 +41,24 @@ public final class OrderConverter {
         return model;
     }
 
-    public static Cart toDomain(CartModel cartModel, FoodRepository foodRepository) {
+    public static Cart toDomain(CartModel cartModel) {
         Cart cart = new Cart();
-        cart.setPrice(cartModel.getPrice());
 
         List<OrderItem> orderItems = new ArrayList<>();
         if (cartModel.getOrderItemModels() != null) {
-            for (OrderItemModel itemModel : cartModel.getOrderItemModels()) {
+            for (CartItemModel itemModel : cartModel.getOrderItemModels()) {
+                if (itemModel == null || itemModel.getFoodId() == null || itemModel.getFoodId() <= 0) {
+                    throw new IllegalArgumentException("A positive food ID is required.");
+                }
+                if (itemModel.getPieces() == null || itemModel.getPieces() <= 0) {
+                    throw new IllegalArgumentException("Pieces must be positive.");
+                }
+
                 OrderItem orderItem = new OrderItem();
-                Long foodId = itemModel.getFoodModel().getId();
-                orderItem.setFood(foodRepository.findById(foodId)
-                        .orElseThrow(() -> new NoSuchElementException("Food not found: " + foodId)));
+                Food food = new Food();
+                food.setId(itemModel.getFoodId());
+                orderItem.setFood(food);
                 orderItem.setPieces(itemModel.getPieces());
-                orderItem.setPrice(itemModel.getPrice());
                 orderItems.add(orderItem);
             }
         }

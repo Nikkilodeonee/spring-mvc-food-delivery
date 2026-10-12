@@ -9,6 +9,8 @@ I later **extended it independently** with PostgreSQL, Flyway migrations, Docker
 
 - Multi-module Spring Boot REST API (`api` · `persistence` · `service` · `web`)
 - Spring Security **form login** (session cookie) for API access
+- CSRF protection for login, logout, and state-changing API requests
+- Checkout prices and totals calculated from the database menu
 - PostgreSQL + **Flyway** migrations
 - **Docker Compose** local environment
 - **GitHub Actions** CI
@@ -63,10 +65,12 @@ flowchart LR
 ## API endpoints
 
 All `/api/**` endpoints require an authenticated session (form login).
+State-changing requests also require the session's CSRF token.
 
 | Method | Path                    | Description                                | Success       |
 | ------ | ----------------------- | ------------------------------------------ | ------------- |
 | `GET`  | `/api/foods`            | List all menu items                        | `200 OK`      |
+| `GET`  | `/api/csrf`             | Get a CSRF token for the current session    | `200 OK`      |
 | `GET`  | `/api/orders`           | List orders for the authenticated customer | `200 OK`      |
 | `GET`  | `/api/orders/{orderId}` | Get a specific order                       | `200 OK`      |
 | `POST` | `/api/orders`           | Create an order from a cart payload        | `201 Created` |
@@ -74,10 +78,21 @@ All `/api/**` endpoints require an authenticated session (form login).
 | `GET`  | `/actuator/info`        | Application info                           | `200 OK`      |
 
 There is no separate cart CRUD API — the cart is sent as the JSON body of `POST /api/orders`.
+Each cart item contains only `foodId` and a positive integer `pieces` quantity:
+
+```json
+{
+  "orderItemModels": [
+    { "foodId": 1, "pieces": 3 }
+  ]
+}
+```
+
+The service loads current menu prices inside the order transaction and calculates each line total and the order total before checking or deducting the balance. Extra client-supplied price fields are ignored. Order responses still include the calculated prices.
 
 ## Error responses
 
-API errors return a JSON body:
+Controller errors and authentication failures return a JSON body:
 
 ```json
 {
@@ -91,8 +106,10 @@ API errors return a JSON body:
 | `400 Bad Request`  | `BAD_REQUEST`   | Empty cart, insufficient balance, or validation failure |
 | `401 Unauthorized` | `UNAUTHORIZED`  | Missing or invalid session                          |
 | `403 Forbidden`    | `FORBIDDEN`     | Order does not belong to the authenticated customer |
-| `404 Not Found`    | `NOT_FOUND`     | Order not found                                     |
+| `404 Not Found`    | `NOT_FOUND`     | Order or food not found                             |
 | `409 Conflict`     | `CONFLICT`      | Concurrent balance update (optimistic locking)        |
+
+Missing or invalid CSRF tokens are rejected by Spring Security with `403 Forbidden` before the controller runs. These filter-level responses do not use the controller's JSON error format.
 
 ## Getting started
 
@@ -156,11 +173,18 @@ The `local` profile is active by default. Flyway applies migrations on startup.
 
 ## Example requests
 
-Login (saves session cookie), then call the API:
+This Bash example uses `curl`, `sed`, and `jq`. First fetch the login form and submit its CSRF token together with the credentials. Then fetch a fresh token for the authenticated session; login rotates the token.
 
 ```bash
-curl -c cookies.txt -X POST http://localhost:8080/login \
-  -d "username=Smith&password=SmithSecret" -L
+curl -s -c cookies.txt http://localhost:8080/login -o login.html
+csrf=$(sed -n 's/.*name="_csrf"[^>]*value="\([^"]*\)".*/\1/p' login.html)
+
+curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8080/login \
+  --data-urlencode "username=Smith" \
+  --data-urlencode "password=SmithSecret" \
+  --data-urlencode "_csrf=$csrf" -o /dev/null
+
+csrf=$(curl -s -b cookies.txt -c cookies.txt http://localhost:8080/api/csrf | jq -r '.token')
 
 curl -b cookies.txt http://localhost:8080/api/foods
 
@@ -168,8 +192,14 @@ curl -b cookies.txt http://localhost:8080/api/orders
 
 curl -b cookies.txt -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-TOKEN: $csrf" \
   -d @web/src/test/resources/ValidCartExample.json
+
+curl -b cookies.txt -X POST http://localhost:8080/logout \
+  -H "X-CSRF-TOKEN: $csrf"
 ```
+
+`GET /api/csrf` returns `token`, `headerName` (`X-CSRF-TOKEN`), and `parameterName` (`_csrf`). Send the token in the returned header for JSON requests or as a form parameter for form requests. Keep using the same session cookie and fetch a new token after each login.
 
 ## Project structure
 
@@ -194,6 +224,8 @@ spring-mvc-food-delivery/
 ## Business rules
 
 * Orders are created from a cart payload.
+* Clients submit only food IDs and positive quantities; the database menu determines all prices.
+* Each line total is the menu unit price multiplied by quantity; the order total is the sum of line totals.
 * The order total is deducted from the customer balance.
 * Empty carts are rejected.
 * Orders are rejected when the customer balance is insufficient.

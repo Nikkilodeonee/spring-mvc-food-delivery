@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -106,6 +107,7 @@ class FoodDeliveryPostgresIntegrationTest {
         long ordersBefore = orderRepository.count();
 
         MvcResult result = mockMvc.perform(post(ORDERS_PATH)
+                        .with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(fromFile("ValidCartExample.json")))
                 .andExpect(status().is(HttpStatus.CREATED.value()))
@@ -118,7 +120,8 @@ class FoodDeliveryPostgresIntegrationTest {
 
         Customer smithAfter = customerRepository.findByUserName(SMITH).orElseThrow();
 
-        assertEquals(new BigDecimal("45"), created.getPrice());
+        assertEquals(new BigDecimal("45.00"), created.getPrice());
+        assertEquals(new BigDecimal("45.00"), created.getOrderItemModels().get(0).getPrice());
         assertEquals(balanceBefore.subtract(new BigDecimal("45")).setScale(2), smithAfter.getBalance());
         assertEquals(ordersBefore + 1, orderRepository.count());
     }
@@ -131,6 +134,7 @@ class FoodDeliveryPostgresIntegrationTest {
         long ordersBefore = orderRepository.count();
 
         mockMvc.perform(post(ORDERS_PATH)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(fromFile("ValidCartExample.json")))
                 .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
@@ -138,6 +142,39 @@ class FoodDeliveryPostgresIntegrationTest {
         Customer johnAfter = customerRepository.findByUserName(JOHN).orElseThrow();
 
         assertEquals(balanceBefore, johnAfter.getBalance());
+        assertEquals(ordersBefore, orderRepository.count());
+    }
+
+    @Test
+    @WithMockUser(username = JANE)
+    void shouldIgnoreManipulatedPricesInPostgres() throws Exception {
+        BigDecimal balanceBefore = customerRepository.findByUserName(JANE).orElseThrow().getBalance();
+        MvcResult result = mockMvc.perform(post(ORDERS_PATH).with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"price": 0.01, "orderItemModels": [{"foodId": 1, "pieces": 3, "price": 0.01}]}
+                                """))
+                .andExpect(status().isCreated()).andReturn();
+        OrderModel created = objectMapper.readValue(result.getResponse().getContentAsString(), OrderModel.class);
+        assertEquals(new BigDecimal("45.00"), created.getPrice());
+        assertEquals(new BigDecimal("45.00"), created.getOrderItemModels().get(0).getPrice());
+        assertEquals(balanceBefore.subtract(new BigDecimal("45.00")),
+                customerRepository.findByUserName(JANE).orElseThrow().getBalance());
+        assertEquals(created.getPrice(), orderRepository.findById(created.getId()).orElseThrow().getPrice());
+    }
+
+    @Test
+    @WithMockUser(username = SMITH)
+    void shouldRejectMissingAndInvalidCsrfInPostgres() throws Exception {
+        BigDecimal balanceBefore = customerRepository.findByUserName(SMITH).orElseThrow().getBalance();
+        long ordersBefore = orderRepository.count();
+        mockMvc.perform(post(ORDERS_PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(fromFile("ValidCartExample.json")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(ORDERS_PATH).with(csrf().useInvalidToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(fromFile("ValidCartExample.json")))
+                .andExpect(status().isForbidden());
+        assertEquals(balanceBefore, customerRepository.findByUserName(SMITH).orElseThrow().getBalance());
         assertEquals(ordersBefore, orderRepository.count());
     }
 

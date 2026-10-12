@@ -6,7 +6,6 @@ import com.fooddelivery.domain.Cart;
 import com.fooddelivery.domain.Order;
 import com.fooddelivery.model.CartModel;
 import com.fooddelivery.model.OrderModel;
-import com.fooddelivery.repository.FoodRepository;
 import com.fooddelivery.service.FoodDeliveryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,16 +18,14 @@ import java.util.List;
 public class OrderController implements OrderServiceApi {
 
     private final FoodDeliveryService foodDeliveryService;
-    private final FoodRepository foodRepository;
 
-    public OrderController(FoodDeliveryService foodDeliveryService, FoodRepository foodRepository) {
+    public OrderController(FoodDeliveryService foodDeliveryService) {
         this.foodDeliveryService = foodDeliveryService;
-        this.foodRepository = foodRepository;
     }
 
     @Override
     public ResponseEntity<OrderModel> createOrder(CartModel cartModel) {
-        Cart cart = OrderConverter.toDomain(cartModel, foodRepository);
+        Cart cart = OrderConverter.toDomain(cartModel);
         Order order = foodDeliveryService.createOrder(getAuthenticatedUserName(), cart);
         return ResponseEntity.status(HttpStatus.CREATED).body(OrderConverter.toModel(order));
     }

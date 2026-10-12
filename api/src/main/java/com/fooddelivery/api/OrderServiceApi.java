@@ -40,20 +40,26 @@ public interface OrderServiceApi {
 
     /**
      * POST /api/orders : Create order from the cart of body
+     * Accepts only food IDs and quantities. Menu prices and all totals are calculated by the server. Requires a session and a CSRF token.
      *
      * @param cartModel  (required)
      * @return the created order from cart (status code 201)
-     *         or Cart is empty or customer doesn&#39;t have enough balance (status code 400)
+     *         or Cart is invalid or customer doesn&#39;t have enough balance (status code 400)
+     *         or Missing or invalid CSRF token (status code 403)
+     *         or Food not found (status code 404)
      */
     @Operation(
         operationId = "createOrder",
         summary = "Create order from the cart of body",
+        description = "Accepts only food IDs and quantities. Menu prices and all totals are calculated by the server. Requires a session and a CSRF token.",
         tags = { "OrderService" },
         responses = {
             @ApiResponse(responseCode = "201", description = "the created order from cart", content = {
                 @Content(mediaType = "application/json", schema = @Schema(implementation = OrderModel.class))
             }),
-            @ApiResponse(responseCode = "400", description = "Cart is empty or customer doesn't have enough balance")
+            @ApiResponse(responseCode = "400", description = "Cart is invalid or customer doesn't have enough balance"),
+            @ApiResponse(responseCode = "403", description = "Missing or invalid CSRF token"),
+            @ApiResponse(responseCode = "404", description = "Food not found")
         }
     )
     @RequestMapping(
